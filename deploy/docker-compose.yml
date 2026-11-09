@@ -1,0 +1,121 @@
+# RADA production stack: website + Django API + Postgres + Redis + Celery + Caddy (automatic HTTPS).
+#
+#   www.<DOMAIN>  -> Next.js website        (frontend)
+#   api.<DOMAIN>  -> Django API and /admin   (web), /static and /media served by Caddy
+#   <DOMAIN>      -> redirects to www
+#
+# Run from this folder:  docker compose up -d --build
+# Settings come from .env next to this file (copy .env.example and fill it in).
+name: radawear
+
+x-backend: &backend
+  build: ../store-backend
+  image: radawear-backend:latest
+  restart: unless-stopped
+  env_file: .env
+  environment: &backend-env
+    DJANGO_SETTINGS_MODULE: config.settings.prod
+    DEBUG: "False"
+    DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    REDIS_URL: redis://redis:6379/0
+    CELERY_BROKER_URL: redis://redis:6379/1
+    ALLOWED_HOSTS: api.${DOMAIN},localhost
+    FRONTEND_URL: https://www.${DOMAIN}
+    NUM_PROXIES: "1"
+    USE_X_FORWARDED_HOST: "True"
+  volumes:
+    - media:/app/media
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      retries: 10
+
+  web:
+    <<: *backend
+    environment:
+      <<: *backend-env
+      RUN_MIGRATIONS: "1"
+      COLLECT_STATIC: "1"
+    volumes:
+      - static:/app/staticfiles
+      - media:/app/media
+
+  celery:
+    <<: *backend
+    command: celery -A config worker -l info --concurrency 2
+
+  beat:
+    <<: *backend
+    command: celery -A config beat -l info
+
+  frontend:
+    build:
+      context: ../store-frontend
+      args:
+        NEXT_PUBLIC_API_URL: https://api.${DOMAIN}/api
+        NEXT_PUBLIC_SITE_URL: https://www.${DOMAIN}
+        NEXT_PUBLIC_USE_MOCKS: "false"
+    image: radawear-frontend:latest
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: https://api.${DOMAIN}/api
+      NEXT_PUBLIC_SITE_URL: https://www.${DOMAIN}
+      # Server-side calls go straight to Django inside Docker (faster, and keeps each visitor's IP).
+      API_URL: http://web:8000/api
+    depends_on:
+      - web
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - static:/srv/static:ro
+      - media:/srv/media:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - web
+
+volumes:
+  pgdata:
+  redisdata:
+  static:
+  media:
+  caddy_data:
+  caddy_config:

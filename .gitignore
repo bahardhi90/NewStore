@@ -1,0 +1,9 @@
+# Each app has its own .gitignore (store-backend/, store-frontend/). These cover the rest.
+deploy/.env
+deploy/backups/
+*.dump
+*.sql
+*.sql.gz
+media.tar.gz
+.DS_Store
+Thumbs.db

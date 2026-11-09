@@ -1,0 +1,37 @@
+# Caddy gets and renews the HTTPS certificates (Let's Encrypt) by itself.
+# DNS must point radawear.com, www.radawear.com and api.radawear.com at this server first.
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	redir https://www.{$DOMAIN}{uri} permanent
+}
+
+www.{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy frontend:3000
+}
+
+api.{$DOMAIN} {
+	encode zstd gzip
+	request_body {
+		max_size 25MB
+	}
+
+	handle /static/* {
+		root * /srv
+		header Cache-Control "public, max-age=2592000"
+		file_server
+	}
+
+	handle /media/* {
+		root * /srv
+		header Cache-Control "public, max-age=604800"
+		file_server
+	}
+
+	handle {
+		reverse_proxy web:8000
+	}
+}

@@ -1,0 +1,1128 @@
+openapi: 3.0.3
+info:
+  title: Men's Fashion Store API
+  version: 1.0.0
+  description: |
+    Shared API contract between the Django REST backend and the Next.js frontend.
+
+    **This file is the single source of truth.** Any change to paths or shapes must be
+    made here first, in the same PR as the code change, and announced to the other side.
+
+    Conventions
+    - Base path: `/api/`
+    - Money: integers in **Toman** (no decimals, no floats)
+    - User-facing messages: Persian. Field names and error codes: English (snake_case)
+    - Auth: JWT bearer (`Authorization: Bearer <access>`), issued by phone + SMS OTP
+    - Pagination: `{ count, next, previous, results }`, `page` query param, default page size 12, max 48
+    - Errors: always `{ detail, code, errors }` (see `Error` schema)
+servers:
+  - url: http://localhost:8000/api
+    description: Local development
+  - url: https://staging-api.example.com/api
+    description: Staging
+
+tags:
+  - name: catalog
+  - name: home
+  - name: cart
+  - name: orders
+  - name: payments
+  - name: auth
+  - name: me
+  - name: stores
+
+paths:
+  # ---------------------------------------------------------------- catalog
+  /categories/:
+    get:
+      tags: [catalog]
+      summary: List categories (tree via parent)
+      operationId: listCategories
+      responses:
+        "200":
+          description: All active categories (not paginated)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Category" }
+
+  /collections/:
+    get:
+      tags: [catalog]
+      summary: List collections
+      operationId: listCollections
+      responses:
+        "200":
+          description: Active collections (not paginated)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Collection" }
+
+  /collections/{slug}/:
+    get:
+      tags: [catalog]
+      summary: Collection detail (products are fetched via /products/?collection=<slug>)
+      operationId: getCollection
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+      responses:
+        "200":
+          description: Collection
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Collection" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /products/:
+    get:
+      tags: [catalog]
+      summary: List / filter / search products
+      operationId: listProducts
+      parameters:
+        - { name: category, in: query, schema: { type: string }, description: Category slug (includes child categories) }
+        - { name: collection, in: query, schema: { type: string }, description: Collection slug }
+        - { name: on_sale, in: query, schema: { type: boolean }, description: "true = only discount_percent > 0" }
+        - { name: search, in: query, schema: { type: string }, description: Search in title and description }
+        - name: size
+          in: query
+          schema: { type: string }
+          description: Comma-separated sizes, e.g. `M,L,XL` (only variants with stock > 0)
+        - name: color
+          in: query
+          schema: { type: string }
+          description: Comma-separated colors, e.g. `مشکی,سرمه‌ای`
+        - { name: min_price, in: query, schema: { type: integer, minimum: 0 }, description: Min final_price (Toman) }
+        - { name: max_price, in: query, schema: { type: integer, minimum: 0 }, description: Max final_price (Toman) }
+        - name: ordering
+          in: query
+          schema:
+            type: string
+            enum: [newest, price, -price, -discount_percent, popular]
+          description: Default `newest`
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Paginated product list
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaginatedProductList" }
+
+  /products/{slug}/:
+    get:
+      tags: [catalog]
+      summary: Product detail with images and variants
+      operationId: getProduct
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+      responses:
+        "200":
+          description: Product detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProductDetail" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /products/filters/:
+    get:
+      tags: [catalog]
+      summary: Available filter values for a listing (sizes, colors, price range)
+      operationId: getProductFilters
+      parameters:
+        - { name: category, in: query, schema: { type: string } }
+        - { name: collection, in: query, schema: { type: string } }
+        - { name: on_sale, in: query, schema: { type: boolean } }
+        - { name: search, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Filter options
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProductFilterOptions" }
+
+  # ------------------------------------------------------------------- home
+  /home/:
+    get:
+      tags: [home]
+      summary: Aggregated home page data (cached)
+      operationId: getHome
+      responses:
+        "200":
+          description: Home page blocks
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Home" }
+
+  /site-settings/:
+    get:
+      tags: [home]
+      summary: Site name and logo (managed in admin)
+      operationId: getSiteSettings
+      responses:
+        "200":
+          description: Site settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SiteSettings" }
+
+  /pages/{slug}/:
+    get:
+      tags: [home]
+      summary: Text of the About, Contact, FAQ or Returns page (managed in admin)
+      operationId: getPage
+      parameters:
+        - { name: slug, in: path, required: true, schema: { type: string, enum: [about, contact, faq, returns] } }
+      responses:
+        "200":
+          description: Page
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Page" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  # ------------------------------------------------------------------- cart
+  /cart/:
+    get:
+      tags: [cart]
+      summary: Current user's server cart (created if missing)
+      operationId: getCart
+      security: [{ jwtAuth: [] }]
+      responses:
+        "200":
+          description: Cart
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cart" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /cart/items/:
+    post:
+      tags: [cart]
+      summary: Add a variant to the cart (adds to quantity if already present)
+      operationId: addCartItem
+      security: [{ jwtAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CartItemCreate" }
+      responses:
+        "201":
+          description: Full updated cart
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cart" }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409": { $ref: "#/components/responses/OutOfStock" }
+
+  /cart/items/{id}/:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      tags: [cart]
+      summary: Change quantity
+      operationId: updateCartItem
+      security: [{ jwtAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CartItemUpdate" }
+      responses:
+        "200":
+          description: Full updated cart
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cart" }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/OutOfStock" }
+    delete:
+      tags: [cart]
+      summary: Remove item
+      operationId: deleteCartItem
+      security: [{ jwtAuth: [] }]
+      responses:
+        "200":
+          description: Full updated cart
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cart" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /cart/merge/:
+    post:
+      tags: [cart]
+      summary: Merge guest cart (from localStorage) into server cart after login
+      description: |
+        Quantities are summed per variant and clamped to stock / max quantity.
+        Items that could not be added are reported in `warnings`, not as an error.
+      operationId: mergeCart
+      security: [{ jwtAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CartMerge" }
+      responses:
+        "200":
+          description: Merged cart
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cart" }
+        "400": { $ref: "#/components/responses/ValidationError" }
+
+  # ----------------------------------------------------------------- orders
+  /shipping-methods/:
+    get:
+      tags: [orders]
+      summary: Active shipping methods with cost
+      operationId: listShippingMethods
+      responses:
+        "200":
+          description: Shipping methods (not paginated)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ShippingMethod" }
+
+  /orders/:
+    post:
+      tags: [orders]
+      summary: Checkout - create order from the server cart
+      description: |
+        All prices are recalculated on the server. Stock is reserved.
+        The cart is emptied on success. Unpaid orders are auto-cancelled after N minutes.
+      operationId: createOrder
+      security: [{ jwtAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OrderCreate" }
+      responses:
+        "201":
+          description: Created order (status `pending`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409": { $ref: "#/components/responses/OutOfStock" }
+
+  # --------------------------------------------------------------- payments
+  /payments/methods/:
+    get:
+      tags: [payments]
+      summary: Payment methods the admin has enabled
+      operationId: listPaymentMethods
+      responses:
+        "200":
+          description: Available payment methods, in display order
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PaymentMethod" }
+
+  /payments/start/:
+    post:
+      tags: [payments]
+      summary: Start payment for a pending order
+      operationId: startPayment
+      security: [{ jwtAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PaymentStart" }
+      responses:
+        "200":
+          description: Redirect the browser to `redirect_url`
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentStartResponse" }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "502": { $ref: "#/components/responses/GatewayError" }
+
+  /payments/verify/:
+    get:
+      tags: [payments]
+      summary: Verify payment after gateway callback (idempotent)
+      description: |
+        Flow: gateway redirects the browser to the frontend page
+        `/payment/result?Authority=...&Status=...`. The frontend forwards the same
+        query string to this endpoint. Calling it twice returns the same result.
+        No auth required (the authority identifies the payment), but the order
+        number is only returned, never other personal data.
+      operationId: verifyPayment
+      parameters:
+        - { name: Authority, in: query, required: true, schema: { type: string }, description: Gateway authority / track id }
+        - { name: Status, in: query, required: true, schema: { type: string, example: OK }, description: "Gateway status (Zarinpal: OK | NOK)" }
+        - { name: TrackingCode, in: query, required: false, schema: { type: string }, description: Digipay tracking code from the callback }
+        - { name: Type, in: query, required: false, schema: { type: string }, description: Digipay purchase type from the callback }
+      responses:
+        "200":
+          description: Verification result (success or failure - check `status`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentVerifyResponse" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  # ------------------------------------------------------------------- auth
+  /auth/otp/request/:
+    post:
+      tags: [auth]
+      summary: Send an OTP code by SMS
+      operationId: requestOtp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OtpRequest" }
+      responses:
+        "200":
+          description: Code sent
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OtpRequestResponse" }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/Throttled" }
+
+  /auth/otp/verify/:
+    post:
+      tags: [auth]
+      summary: Verify OTP and receive JWT (creates the user on first login)
+      operationId: verifyOtp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OtpVerify" }
+      responses:
+        "200":
+          description: Tokens
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthTokens" }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/Throttled" }
+
+  /auth/token/refresh/:
+    post:
+      tags: [auth]
+      summary: Refresh access token (refresh token is rotated)
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh]
+              properties:
+                refresh: { type: string }
+      responses:
+        "200":
+          description: New tokens
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [access, refresh]
+                properties:
+                  access: { type: string }
+                  refresh: { type: string }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /auth/logout/:
+    post:
+      tags: [auth]
+      summary: Blacklist the refresh token
+      operationId: logout
+      security: [{ jwtAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh]
+              properties:
+                refresh: { type: string }
+      responses:
+        "204": { description: Logged out }
+
+  # --------------------------------------------------------------------- me
+  /me/:
+    get:
+      tags: [me]
+      summary: Current user profile
+      operationId: getMe
+      security: [{ jwtAuth: [] }]
+      responses:
+        "200":
+          description: Profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    patch:
+      tags: [me]
+      summary: Update profile (phone cannot be changed here)
+      operationId: updateMe
+      security: [{ jwtAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UserUpdate" }
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "400": { $ref: "#/components/responses/ValidationError" }
+
+  /me/orders/:
+    get:
+      tags: [me]
+      summary: Order history (newest first)
+      operationId: listMyOrders
+      security: [{ jwtAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/OrderStatus" }
+      responses:
+        "200":
+          description: Paginated orders
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaginatedOrderList" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /me/orders/{id}/:
+    get:
+      tags: [me]
+      summary: Order detail (owner only)
+      operationId: getMyOrder
+      security: [{ jwtAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Order
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /me/addresses/:
+    get:
+      tags: [me]
+      summary: List my addresses
+      operationId: listAddresses
+      security: [{ jwtAuth: [] }]
+      responses:
+        "200":
+          description: Addresses (not paginated, max 10)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Address" }
+    post:
+      tags: [me]
+      summary: Add address
+      operationId: createAddress
+      security: [{ jwtAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AddressInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Address" }
+        "400": { $ref: "#/components/responses/ValidationError" }
+
+  /me/addresses/{id}/:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      tags: [me]
+      summary: Update address
+      operationId: updateAddress
+      security: [{ jwtAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AddressInput" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Address" }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [me]
+      summary: Delete address
+      operationId: deleteAddress
+      security: [{ jwtAuth: [] }]
+      responses:
+        "204": { description: Deleted }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  # ----------------------------------------------------------------- stores
+  /stores/:
+    get:
+      tags: [stores]
+      summary: Physical store locations
+      operationId: listStores
+      responses:
+        "200":
+          description: Stores (not paginated)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Store" }
+
+components:
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    Slug:
+      name: slug
+      in: path
+      required: true
+      schema: { type: string, example: classic-wool-jacket }
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer }
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    PageSize:
+      name: page_size
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 48, default: 12 }
+
+  responses:
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example:
+            detail: اطلاعات ارسالی معتبر نیست.
+            code: validation_error
+            errors:
+              phone: [شماره موبایل باید با ۰۹ شروع شود و ۱۱ رقم باشد.]
+    Unauthorized:
+      description: Missing or invalid token
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { detail: لطفاً وارد حساب کاربری شوید., code: not_authenticated, errors: {} }
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { detail: یافت نشد., code: not_found, errors: {} }
+    OutOfStock:
+      description: Not enough stock
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example:
+            detail: موجودی کافی نیست.
+            code: out_of_stock
+            errors:
+              variant_id: [از این سایز فقط ۲ عدد موجود است.]
+    Throttled:
+      description: Too many requests
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { detail: تعداد درخواست‌ها زیاد است. ۶۰ ثانیه دیگر تلاش کنید., code: throttled, errors: { retry_after: ["60"] } }
+    GatewayError:
+      description: Payment gateway unreachable or rejected the request
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { detail: ارتباط با درگاه پرداخت برقرار نشد., code: gateway_error, errors: {} }
+
+  schemas:
+    Error:
+      type: object
+      required: [detail, code, errors]
+      properties:
+        detail: { type: string, description: Persian message for the user }
+        code:
+          type: string
+          description: Stable English code the frontend can switch on
+          example: validation_error
+        errors:
+          type: object
+          description: Field-level errors, empty object if none
+          additionalProperties:
+            type: array
+            items: { type: string }
+
+    Category:
+      type: object
+      required: [id, name, slug, parent]
+      properties:
+        id: { type: integer, example: 1 }
+        name: { type: string, example: کاپشن و جلیقه }
+        slug: { type: string, example: jackets }
+        parent: { type: integer, nullable: true }
+        image: { type: string, format: uri, nullable: true }
+
+    Collection:
+      type: object
+      required: [id, title, slug, banner]
+      properties:
+        id: { type: integer }
+        title: { type: string, example: کالکشن بهاره }
+        slug: { type: string, example: spring-collection }
+        description: { type: string }
+        banner: { type: string, format: uri }
+        banner_mobile: { type: string, format: uri, nullable: true }
+
+    ProductListItem:
+      type: object
+      required: [id, title, slug, image, base_price, discount_percent, final_price]
+      properties:
+        id: { type: integer, example: 12 }
+        title: { type: string, example: کت پشمی کلاسیک }
+        slug: { type: string, example: classic-wool-jacket }
+        image: { type: string, format: uri, nullable: true, description: First image }
+        hover_image: { type: string, format: uri, nullable: true, description: "Second image for the hover effect (optional)" }
+        base_price: { type: integer, example: 4500000, description: Toman }
+        discount_percent: { type: integer, minimum: 0, maximum: 90, example: 20 }
+        final_price: { type: integer, example: 3600000, description: "Toman, = base_price * (100 - discount_percent) / 100, rounded down to 1,000" }
+
+    ProductImage:
+      type: object
+      required: [image]
+      properties:
+        image: { type: string, format: uri }
+        alt: { type: string }
+        color: { type: string, description: Variant color this image shows; empty = any color }
+
+    Variant:
+      type: object
+      required: [id, size, color, stock]
+      properties:
+        id: { type: integer, example: 101 }
+        size: { type: string, example: L }
+        color: { type: string, example: مشکی }
+        color_hex: { type: string, example: "#000000", nullable: true }
+        stock: { type: integer, minimum: 0, example: 4 }
+
+    ProductDetail:
+      allOf:
+        - $ref: "#/components/schemas/ProductListItem"
+        - type: object
+          required: [description, category, collections, images, variants]
+          properties:
+            description: { type: string }
+            category: { $ref: "#/components/schemas/Category" }
+            collections:
+              type: array
+              items: { $ref: "#/components/schemas/Collection" }
+            images:
+              type: array
+              items: { $ref: "#/components/schemas/ProductImage" }
+            variants:
+              type: array
+              items: { $ref: "#/components/schemas/Variant" }
+
+    ProductFilterOptions:
+      type: object
+      properties:
+        sizes: { type: array, items: { type: string }, example: [S, M, L, XL] }
+        colors:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string, example: مشکی }
+              hex: { type: string, example: "#000000", nullable: true }
+        min_price: { type: integer }
+        max_price: { type: integer }
+
+    PaginatedProductList:
+      type: object
+      required: [count, next, previous, results]
+      properties:
+        count: { type: integer, example: 42 }
+        next: { type: string, format: uri, nullable: true }
+        previous: { type: string, format: uri, nullable: true }
+        results:
+          type: array
+          items: { $ref: "#/components/schemas/ProductListItem" }
+
+    SiteSettings:
+      type: object
+      required: [brand_name, tagline, announcement_text, instagram_url, telegram_url, trust_badges, footer_columns, shipping_points, size_guide_note, size_charts]
+      properties:
+        brand_name: { type: string, example: کرامت }
+        tagline: { type: string }
+        logo: { type: string, format: uri, nullable: true }
+        announcement_text: { type: string, description: Top bar text; empty hides the bar }
+        instagram_url: { type: string, description: Empty hides the icon }
+        telegram_url: { type: string, description: Empty hides the icon }
+        trust_badges: { type: array, items: { $ref: "#/components/schemas/TrustBadge" } }
+        footer_columns: { type: array, items: { $ref: "#/components/schemas/FooterColumn" } }
+        shipping_points: { type: array, items: { type: string }, description: Lines of the shipping/returns tab on product pages }
+        size_guide_note: { type: string }
+        size_charts: { type: array, items: { $ref: "#/components/schemas/SizeChart" } }
+
+    SizeChart:
+      type: object
+      required: [title, columns, rows]
+      properties:
+        title: { type: string }
+        columns: { type: array, items: { type: string } }
+        rows: { type: array, items: { type: array, items: { type: string } } }
+
+    Page:
+      type: object
+      required: [slug, title, paragraphs, items]
+      properties:
+        slug: { type: string, enum: [about, contact, faq, returns] }
+        title: { type: string }
+        paragraphs: { type: array, items: { type: string } }
+        items:
+          type: array
+          description: "FAQ: question/answer. Returns: heading/text. Contact: label/value."
+          items:
+            type: object
+            required: [heading, body]
+            properties:
+              heading: { type: string }
+              body: { type: string }
+
+    TrustBadge:
+      type: object
+      required: [icon, title, subtitle]
+      properties:
+        icon: { type: string, enum: [return, truck, shield, badge, phone, clock] }
+        title: { type: string }
+        subtitle: { type: string }
+
+    FooterColumn:
+      type: object
+      required: [title, links]
+      properties:
+        title: { type: string }
+        links:
+          type: array
+          items:
+            type: object
+            required: [title, url]
+            properties:
+              title: { type: string }
+              url: { type: string, description: Site path (/faq) or full URL }
+
+    Banner:
+      type: object
+      required: [id, image]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        subtitle: { type: string }
+        image: { type: string, format: uri, nullable: true, description: "JPG/PNG/GIF; the video's poster when a video is set" }
+        image_mobile: { type: string, format: uri, nullable: true }
+        video: { type: string, format: uri, nullable: true, description: MP4/WebM played muted and looped }
+        link: { type: string, description: Relative frontend path, example: /collection/spring-collection }
+
+    Home:
+      type: object
+      required: [banners, categories, on_sale, newest]
+      properties:
+        banners: { type: array, items: { $ref: "#/components/schemas/Banner" } }
+        categories: { type: array, items: { $ref: "#/components/schemas/Category" } }
+        on_sale: { type: array, items: { $ref: "#/components/schemas/ProductListItem" } }
+        collection_highlight:
+          type: object
+          nullable: true
+          required: [collection, products]
+          properties:
+            collection: { $ref: "#/components/schemas/Collection" }
+            products: { type: array, items: { $ref: "#/components/schemas/ProductListItem" } }
+        newest: { type: array, items: { $ref: "#/components/schemas/ProductListItem" } }
+
+    CartItem:
+      type: object
+      required: [id, product, variant, quantity, unit_price, final_unit_price, line_total]
+      properties:
+        id: { type: integer }
+        product:
+          type: object
+          properties:
+            id: { type: integer }
+            title: { type: string }
+            slug: { type: string }
+            image: { type: string, format: uri, nullable: true }
+        variant: { $ref: "#/components/schemas/Variant" }
+        quantity: { type: integer, minimum: 1 }
+        unit_price: { type: integer, description: base_price now }
+        discount_percent: { type: integer }
+        final_unit_price: { type: integer }
+        line_total: { type: integer, description: final_unit_price * quantity }
+        warning:
+          type: string
+          nullable: true
+          description: Persian message if stock dropped below quantity or the product was deactivated
+
+    Cart:
+      type: object
+      required: [id, items, item_count, subtotal, discount_total, total]
+      properties:
+        id: { type: integer }
+        items: { type: array, items: { $ref: "#/components/schemas/CartItem" } }
+        item_count: { type: integer, description: Sum of quantities }
+        subtotal: { type: integer, description: Sum of unit_price * qty }
+        discount_total: { type: integer }
+        total: { type: integer, description: subtotal - discount_total (shipping excluded) }
+        warnings:
+          type: array
+          items: { type: string }
+          description: Persian messages for items that could not be merged/added (e.g. out of stock)
+
+    CartItemCreate:
+      type: object
+      required: [variant_id, quantity]
+      properties:
+        variant_id: { type: integer }
+        quantity: { type: integer, minimum: 1, maximum: 10 }
+
+    CartItemUpdate:
+      type: object
+      required: [quantity]
+      properties:
+        quantity: { type: integer, minimum: 1, maximum: 10 }
+
+    CartMerge:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 50
+          items: { $ref: "#/components/schemas/CartItemCreate" }
+
+    ShippingMethod:
+      type: object
+      required: [id, title, cost]
+      properties:
+        id: { type: integer }
+        title: { type: string, example: پست پیشتاز }
+        description: { type: string, example: ۳ تا ۵ روز کاری }
+        cost: { type: integer, example: 60000 }
+        free_over: { type: integer, nullable: true, description: Free if cart total >= this amount }
+
+    OrderStatus:
+      type: string
+      enum: [pending, paid, processing, shipped, delivered, cancelled, refunded]
+
+    OrderCreate:
+      type: object
+      required: [address_id, shipping_method_id]
+      properties:
+        address_id: { type: integer }
+        shipping_method_id: { type: integer }
+        note: { type: string, maxLength: 500 }
+
+    OrderItem:
+      type: object
+      properties:
+        id: { type: integer }
+        product_slug: { type: string, nullable: true }
+        title: { type: string, description: Snapshot at purchase time }
+        image: { type: string, format: uri, nullable: true }
+        size: { type: string }
+        color: { type: string }
+        quantity: { type: integer }
+        unit_price: { type: integer }
+        discount_percent: { type: integer }
+        final_unit_price: { type: integer }
+        line_total: { type: integer }
+
+    Order:
+      type: object
+      required: [id, number, status, items, subtotal, discount_total, shipping_cost, total, created_at]
+      properties:
+        id: { type: integer }
+        number: { type: string, example: "1405-000123" }
+        status: { $ref: "#/components/schemas/OrderStatus" }
+        status_display: { type: string, example: در انتظار پرداخت }
+        items: { type: array, items: { $ref: "#/components/schemas/OrderItem" } }
+        subtotal: { type: integer }
+        discount_total: { type: integer }
+        shipping_cost: { type: integer }
+        total: { type: integer }
+        shipping_method: { $ref: "#/components/schemas/ShippingMethod" }
+        address: { $ref: "#/components/schemas/AddressInput" }
+        note: { type: string }
+        tracking_code: { type: string, nullable: true }
+        expires_at: { type: string, format: date-time, nullable: true, description: When an unpaid order is auto-cancelled }
+        created_at: { type: string, format: date-time }
+        paid_at: { type: string, format: date-time, nullable: true }
+
+    PaginatedOrderList:
+      type: object
+      required: [count, next, previous, results]
+      properties:
+        count: { type: integer }
+        next: { type: string, format: uri, nullable: true }
+        previous: { type: string, format: uri, nullable: true }
+        results:
+          type: array
+          items: { $ref: "#/components/schemas/Order" }
+
+    PaymentMethod:
+      type: object
+      required: [code, title]
+      properties:
+        code: { type: string, example: snapppay }
+        title: { type: string, example: اسنپ‌پی }
+        description: { type: string }
+        logo: { type: string, format: uri, nullable: true }
+        min_amount: { type: integer, nullable: true, description: Minimum order total in Toman }
+        max_amount: { type: integer, nullable: true, description: Maximum order total in Toman }
+
+    PaymentStart:
+      type: object
+      required: [order_id]
+      properties:
+        order_id: { type: integer }
+        method: { type: string, description: "PaymentMethod code; the first available method is used when omitted", example: snapppay }
+
+    PaymentStartResponse:
+      type: object
+      required: [redirect_url]
+      properties:
+        redirect_url: { type: string, format: uri, example: "https://www.zarinpal.com/pg/StartPay/A000000000000000000000000000000000000" }
+        payment_id: { type: integer }
+
+    PaymentVerifyResponse:
+      type: object
+      required: [status, detail]
+      properties:
+        status: { type: string, enum: [success, failed, cancelled] }
+        detail: { type: string, example: پرداخت با موفقیت انجام شد. }
+        order_id: { type: integer, nullable: true }
+        order_number: { type: string, nullable: true }
+        ref_id: { type: string, nullable: true, description: Bank reference number (show to user on success) }
+        amount: { type: integer, nullable: true }
+
+    OtpRequest:
+      type: object
+      required: [phone]
+      properties:
+        phone: { type: string, pattern: "^09\\d{9}$", example: "09121234567" }
+
+    OtpRequestResponse:
+      type: object
+      required: [detail, expires_in, resend_in]
+      properties:
+        detail: { type: string, example: کد تأیید ارسال شد. }
+        expires_in: { type: integer, example: 120, description: Seconds until the code expires }
+        resend_in: { type: integer, example: 120, description: Seconds until a new code can be requested }
+
+    OtpVerify:
+      type: object
+      required: [phone, code]
+      properties:
+        phone: { type: string, pattern: "^09\\d{9}$" }
+        code: { type: string, pattern: "^\\d{5}$", example: "12345" }
+
+    AuthTokens:
+      type: object
+      required: [access, refresh, user, is_new]
+      properties:
+        access: { type: string, description: "Lifetime 15 min" }
+        refresh: { type: string, description: "Lifetime 7 days, rotated on refresh" }
+        user: { $ref: "#/components/schemas/User" }
+        is_new: { type: boolean, description: True on first login (frontend may ask for name) }
+
+    User:
+      type: object
+      required: [id, phone]
+      properties:
+        id: { type: integer }
+        phone: { type: string, example: "09121234567" }
+        first_name: { type: string }
+        last_name: { type: string }
+        email: { type: string, format: email, nullable: true }
+        date_joined: { type: string, format: date-time }
+
+    UserUpdate:
+      type: object
+      properties:
+        first_name: { type: string, maxLength: 50 }
+        last_name: { type: string, maxLength: 50 }
+        email: { type: string, format: email, nullable: true }
+
+    AddressInput:
+      type: object
+      required: [title, receiver_name, receiver_phone, province, city, postal_code, address_line]
+      properties:
+        title: { type: string, example: خانه }
+        receiver_name: { type: string, example: علی رضایی }
+        receiver_phone: { type: string, pattern: "^09\\d{9}$" }
+        province: { type: string, example: تهران }
+        city: { type: string, example: تهران }
+        postal_code: { type: string, pattern: "^\\d{10}$" }
+        address_line: { type: string, example: خیابان ولیعصر، کوچه ۱۲، پلاک ۴ }
+        is_default: { type: boolean, default: false }
+
+    Address:
+      allOf:
+        - type: object
+          required: [id]
+          properties:
+            id: { type: integer }
+        - $ref: "#/components/schemas/AddressInput"
+
+    Store:
+      type: object
+      required: [id, name, city, address]
+      properties:
+        id: { type: integer }
+        name: { type: string, example: شعبه مرکزی }
+        city: { type: string, example: تهران }
+        address: { type: string }
+        phone: { type: string }
+        hours: { type: string, example: شنبه تا پنجشنبه ۱۰ تا ۲۲ }
+        latitude: { type: number, nullable: true }
+        longitude: { type: number, nullable: true }
+        image: { type: string, format: uri, nullable: true }

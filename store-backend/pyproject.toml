@@ -1,0 +1,13 @@
+[tool.black]
+line-length = 120
+target-version = ["py312"]
+extend-exclude = "migrations"
+
+[tool.isort]
+profile = "black"
+line_length = 120
+known_first_party = ["apps", "config", "tests"]
+skip_glob = ["*/migrations/*"]
+
+[tool.coverage.run]
+omit = ["*/migrations/*", "*/management/commands/seed_demo.py", "config/wsgi.py"]
