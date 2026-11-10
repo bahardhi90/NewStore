@@ -8,8 +8,19 @@
 # Settings come from .env next to this file (copy .env.example and fill it in).
 name: radawear
 
+# Build-time proxy (optional): set HTTP_PROXY / HTTPS_PROXY / NO_PROXY in .env or the shell.
+x-proxy-args: &proxy-args
+  HTTP_PROXY: ${HTTP_PROXY:-}
+  HTTPS_PROXY: ${HTTPS_PROXY:-}
+  NO_PROXY: ${NO_PROXY:-}
+  http_proxy: ${HTTP_PROXY:-}
+  https_proxy: ${HTTPS_PROXY:-}
+  no_proxy: ${NO_PROXY:-}
+
 x-backend: &backend
-  build: ../store-backend
+  build:
+    context: ../store-backend
+    args: *proxy-args
   image: radawear-backend:latest
   restart: unless-stopped
   env_file: .env
@@ -79,6 +90,7 @@ services:
     build:
       context: ../store-frontend
       args:
+        <<: *proxy-args
         NEXT_PUBLIC_API_URL: https://api.${DOMAIN}/api
         NEXT_PUBLIC_SITE_URL: https://www.${DOMAIN}
         NEXT_PUBLIC_USE_MOCKS: "false"

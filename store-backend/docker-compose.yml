@@ -4,6 +4,13 @@ x-backend: &backend
     context: .
     args:
       REQUIREMENTS: requirements/dev.txt
+      # Optional build-time proxy, taken from the shell or .env
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-}
+      http_proxy: ${HTTP_PROXY:-}
+      https_proxy: ${HTTPS_PROXY:-}
+      no_proxy: ${NO_PROXY:-}
   env_file: .env
   user: "0:0"  # dev only: lets the mounted source folder be written (media uploads)
   environment:

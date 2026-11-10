@@ -1,7 +1,16 @@
 # Production stack: docker compose -f docker-compose.prod.yml up -d --build
 # Requires a .env with production values (see .env.example; DEBUG=False, real SECRET_KEY, etc.)
 x-backend: &backend
-  build: .
+  build:
+    context: .
+    args:
+      # Optional build-time proxy, taken from the shell or .env
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-}
+      http_proxy: ${HTTP_PROXY:-}
+      https_proxy: ${HTTPS_PROXY:-}
+      no_proxy: ${NO_PROXY:-}
   image: ${IMAGE:-store-backend:latest}
   restart: unless-stopped
   env_file: .env
