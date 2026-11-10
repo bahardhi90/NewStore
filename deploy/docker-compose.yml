@@ -81,10 +81,14 @@ services:
   celery:
     <<: *backend
     command: celery -A config worker -l info --concurrency 2
+    healthcheck:
+      disable: true  # the image's healthcheck calls the web API on :8000, which this container doesn't run
 
   beat:
     <<: *backend
     command: celery -A config beat -l info
+    healthcheck:
+      disable: true
 
   frontend:
     build:

@@ -1,19 +1,26 @@
-# Caddy gets and renews the HTTPS certificates (Let's Encrypt) by itself.
-# DNS must point radawear.com, www.radawear.com and api.radawear.com at this server first.
+# Two ways to run (see README):
+#  - Caddy on ports 80/443 (default): Caddy gets and renews the HTTPS certificates (Let's Encrypt) by itself.
+#    DNS must point radawear.com, www.radawear.com and api.radawear.com at this server first.
+#  - Behind the server's nginx (docker-compose.behind-nginx.yml): nginx handles HTTPS and forwards
+#    plain HTTP here. That file sets SITE_SCHEME=http and TRUSTED_PROXIES=private_ranges.
 {
 	email {$ACME_EMAIL}
+	servers {
+		# Proxies whose X-Forwarded-For/-Proto headers are kept. Default: none from outside.
+		trusted_proxies static {$TRUSTED_PROXIES:127.0.0.1/32}
+	}
 }
 
-{$DOMAIN} {
+{$SITE_SCHEME:https}://{$DOMAIN} {
 	redir https://www.{$DOMAIN}{uri} permanent
 }
 
-www.{$DOMAIN} {
+{$SITE_SCHEME:https}://www.{$DOMAIN} {
 	encode zstd gzip
 	reverse_proxy frontend:3000
 }
 
-api.{$DOMAIN} {
+{$SITE_SCHEME:https}://api.{$DOMAIN} {
 	encode zstd gzip
 	request_body {
 		max_size 25MB

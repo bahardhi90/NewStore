@@ -1,0 +1,19 @@
+# Use when the server's own nginx already owns ports 80/443 (other websites on the same server).
+# nginx handles HTTPS and forwards the RADA domains to Caddy on 127.0.0.1:${CADDY_HTTP_PORT:-8080}.
+#
+# Turn it on by adding this line to .env (then update.sh and plain "docker compose" use it too):
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.behind-nginx.yml
+# nginx site config: nginx/radawear.conf
+services:
+  caddy:
+    ports: !override
+      - "127.0.0.1:${CADDY_HTTP_PORT:-8080}:80"
+    environment:
+      SITE_SCHEME: http
+      # nginx reaches the container from the Docker bridge gateway (a private address).
+      TRUSTED_PROXIES: private_ranges
+
+  web:
+    environment:
+      # Two proxies now: nginx, then Caddy. The visitor's IP is the 2nd from the end of X-Forwarded-For.
+      NUM_PROXIES: "2"
