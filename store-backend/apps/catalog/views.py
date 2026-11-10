@@ -9,7 +9,7 @@ from rest_framework.response import Response
 
 from .cache import CATEGORIES_KEY
 from .filters import ProductBaseFilter, ProductFilter, sort_sizes
-from .models import Category, Collection, Product, ProductImage, Variant
+from .models import Category, Collection, Product, ProductImage, Variant, normalize_size
 from .serializers import (
     CategorySerializer,
     CollectionSerializer,
@@ -115,11 +115,14 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
             base = filters.SearchFilter().filter_queryset(request, base, self)
         product_ids = base.values("id")
         variants = Variant.objects.filter(product_id__in=product_ids, stock__gt=0)
-        # order_by() clears Variant's default ordering; otherwise DISTINCT also compares "id" and repeats sizes
-        sizes = sort_sizes(list(variants.values_list("size", flat=True).order_by().distinct()))
+        # De-duplicate in Python, not with SQL DISTINCT: DISTINCT silently stops working when a default
+        # ordering (e.g. "id") is added to the query, which once listed every size once per variant.
+        sizes = sort_sizes(list({normalize_size(s) for s in variants.values_list("size", flat=True)} - {""}))
         colors_seen: dict[str, str | None] = {}
         for name, hex_code in variants.values_list("color", "color_hex").order_by("color"):
-            colors_seen.setdefault(name, hex_code or None)
+            name = " ".join(name.split())
+            if name:
+                colors_seen.setdefault(name, hex_code or None)
         prices = Product.objects.filter(id__in=product_ids).aggregate(min=Min("final_price"), max=Max("final_price"))
         data = {
             "sizes": sizes,

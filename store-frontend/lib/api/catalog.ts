@@ -5,6 +5,7 @@
 import "server-only";
 
 import { M } from "@/constants/messages";
+import { uniqueFilterOptions } from "@/lib/filter-options";
 import { ServerApiError, serverGet } from "@/lib/server/backend";
 import type {
   Category,
@@ -92,8 +93,9 @@ export async function getProduct(slug: string): Promise<ProductDetail | null> {
   return nullOn404(() => serverGet<ProductDetail>(`/products/${encodeURIComponent(slug)}/`, undefined, REVALIDATE.product));
 }
 
-export function getProductFilters(query: Pick<ProductQuery, "category" | "collection" | "on_sale" | "search">) {
-  return serverGet<ProductFilterOptions>("/products/filters/", toSearch(query), REVALIDATE.catalog);
+export async function getProductFilters(query: Pick<ProductQuery, "category" | "collection" | "on_sale" | "search">) {
+  const options = await serverGet<ProductFilterOptions>("/products/filters/", toSearch(query), REVALIDATE.catalog);
+  return uniqueFilterOptions(options);
 }
 
 async function nullOn404<T>(fn: () => Promise<T>): Promise<T | null> {

@@ -94,6 +94,24 @@ class Variant(TimeStampedModel):
     def __str__(self) -> str:
         return f"{self.product.title} / {self.size} / {self.color}"
 
+    def normalize(self) -> None:
+        """Treat ' s' and 'S' as the same size, otherwise the filters list it twice."""
+        self.size = normalize_size(self.size)
+        self.color = " ".join((self.color or "").split())
+
+    def clean(self) -> None:
+        # Runs before the unique (product, size, color) check in admin forms.
+        self.normalize()
+        super().clean()
+
+    def save(self, *args, **kwargs) -> None:
+        self.normalize()
+        super().save(*args, **kwargs)
+
+
+def normalize_size(size: str) -> str:
+    return " ".join((size or "").split()).upper()
+
 
 class ProductImage(TimeStampedModel):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="images", verbose_name="محصول")

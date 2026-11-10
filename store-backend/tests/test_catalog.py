@@ -105,6 +105,28 @@ def test_filter_options(api_client):
     assert body["max_price"] == 3_000_000
 
 
+def test_collection_filter_options_list_each_size_once(api_client):
+    winter = CollectionFactory(slug="winter")
+    for _ in range(4):
+        product = ProductFactory()
+        product.collections.add(winter)
+        for size in ["S", "M", "L"]:
+            VariantFactory(product=product, size=size, color="مشکی")
+            VariantFactory(product=product, size=size, color="سفید")
+    body = api_client.get("/api/products/filters/?collection=winter").json()
+    assert body["sizes"] == ["S", "M", "L"]
+    assert [c["name"] for c in body["colors"]] == sorted({"مشکی", "سفید"})
+
+
+def test_variant_size_and_color_are_normalized(api_client):
+    VariantFactory(product__slug="a", size=" s ", color=" مشکی  ")
+    VariantFactory(product__slug="b", size="S", color="مشکی")
+    body = api_client.get("/api/products/filters/").json()
+    assert body["sizes"] == ["S"]
+    assert [c["name"] for c in body["colors"]] == ["مشکی"]
+    assert slugs(api_client.get("/api/products/?size=s")) == {"a", "b"}
+
+
 def test_product_list_query_count_is_constant(api_client, django_assert_max_num_queries):
     for _ in range(10):
         product = ProductFactory()

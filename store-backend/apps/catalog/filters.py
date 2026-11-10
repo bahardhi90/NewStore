@@ -1,7 +1,7 @@
 import django_filters
 from django.db.models import Exists, OuterRef, QuerySet
 
-from .models import Category, Product, Variant
+from .models import Category, Product, Variant, normalize_size
 
 SIZE_ORDER = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "3XL", "4XL"]
 
@@ -46,7 +46,7 @@ class ProductFilter(django_filters.FilterSet):
         return queryset.filter(discount_percent__gt=0) if value else queryset
 
     def filter_size(self, queryset: QuerySet, name: str, value: str) -> QuerySet:
-        sizes = _csv(value)
+        sizes = [normalize_size(s) for s in _csv(value)]
         if not sizes:
             return queryset
         return queryset.filter(Exists(Variant.objects.filter(product=OuterRef("pk"), size__in=sizes, stock__gt=0)))
