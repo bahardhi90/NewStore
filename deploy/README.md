@@ -94,6 +94,30 @@ Open https://www.radawear.com. At this point the database is empty. Step 5 bring
 docker compose exec web python manage.py createsuperuser
 ```
 
+### Server already runs nginx (other websites on ports 80/443)
+
+If `docker compose up` fails with `failed to bind host port 0.0.0.0:80/tcp: address already in use`, nginx owns the ports. Keep it, and let it forward the RADA domains to Caddy on a local port:
+
+```bash
+cd /srv/radawear/deploy
+# 1. Turn on the behind-nginx mode (uncomment these two lines in .env):
+#      COMPOSE_FILE=docker-compose.yml:docker-compose.behind-nginx.yml
+#      CADDY_HTTP_PORT=8080          # any free local port
+nano .env
+docker compose up -d                  # Caddy now listens on 127.0.0.1:8080 only
+
+# 2. nginx site for radawear.com, www and api
+sudo cp nginx/radawear.conf /etc/nginx/sites-available/radawear.conf
+sudo ln -s /etc/nginx/sites-available/radawear.conf /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+
+# 3. HTTPS certificates through nginx
+sudo apt-get install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d radawear.com -d www.radawear.com -d api.radawear.com --redirect
+```
+
+Your other nginx sites are not touched. `update.sh` keeps using this mode because it is set in `.env`.
+
 ## 5. Bring over your current content (products, images, settings)
 
 **On your PC** (PowerShell), from `D:\NewStore\store-backend` while the local backend is running:
