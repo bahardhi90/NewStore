@@ -1,3 +1,9 @@
+# Proxy: pass at build time, e.g.
+#   docker build --build-arg http_proxy=http://proxy:3128 --build-arg https_proxy=http://proxy:3128 .
+# http_proxy/https_proxy/no_proxy (and uppercase) are Docker's predefined build args: every RUN
+# (apt-get, pip) sees them without an ARG line, and they are kept out of the image and its history.
+# apt only reads the lowercase names, so always pass those.
+
 # ---------- build stage: compile wheels
 FROM python:3.12-slim AS builder
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_NO_CACHE_DIR=1
