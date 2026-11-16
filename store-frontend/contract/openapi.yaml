@@ -865,10 +865,15 @@ components:
           type: array
           items:
             type: object
-            required: [title, url]
+            required: [title, url, image]
             properties:
-              title: { type: string }
+              title: { type: string, description: Link text; the alt text when an image is shown }
               url: { type: string, description: Site path (/faq) or full URL }
+              image:
+                type: string
+                format: uri
+                nullable: true
+                description: Logo shown instead of the title (uploaded, or external such as the eNamad seal)
 
     Banner:
       type: object

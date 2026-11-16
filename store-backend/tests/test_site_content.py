@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 
-from apps.content.models import MAX_VIDEO_MB, Banner, FooterColumn, SiteSettings, TrustBadge
+from apps.content.models import MAX_VIDEO_MB, Banner, FooterColumn, FooterLink, SiteSettings, TrustBadge
 
 pytestmark = pytest.mark.django_db
 
@@ -22,7 +22,23 @@ def test_site_settings_returns_everything_the_header_and_footer_show(api_client)
     assert body["instagram_url"] == "https://instagram.com"
     assert [b["icon"] for b in body["trust_badges"]] == ["return", "truck", "shield", "badge"]
     assert [c["title"] for c in body["footer_columns"]] == ["راهنمای خرید", "فروشگاه"]
-    assert body["footer_columns"][0]["links"][0] == {"title": "سوالات متداول", "url": "/faq"}
+    assert body["footer_columns"][0]["links"][0] == {"title": "سوالات متداول", "url": "/faq", "image": None}
+
+
+def test_footer_link_can_show_an_external_logo_such_as_enamad(api_client):
+    column = FooterColumn.objects.get(title="فروشگاه")
+    seal = "https://trustseal.enamad.ir/logo.aspx?id=1&Code=abc"
+    column.links.create(title="نماد اعتماد", url="https://trustseal.enamad.ir/?id=1&Code=abc", image_url=seal, order=99)
+    body = api_client.get("/api/site-settings/").json()
+    link = body["footer_columns"][1]["links"][-1]
+    assert link == {"title": "نماد اعتماد", "url": "https://trustseal.enamad.ir/?id=1&Code=abc", "image": seal}
+
+
+def test_footer_link_takes_an_uploaded_logo_or_an_address_not_both():
+    column = FooterColumn.objects.first()
+    link = FooterLink(column=column, title="x", url="/", image="footer/x.png", image_url="https://example.com/x.png")
+    with pytest.raises(ValidationError):
+        link.full_clean()
 
 
 def test_admin_changes_show_up(api_client):

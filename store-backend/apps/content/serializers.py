@@ -38,9 +38,18 @@ class TrustBadgeSerializer(serializers.ModelSerializer):
 
 
 class FooterLinkSerializer(serializers.ModelSerializer):
+    image = serializers.SerializerMethodField()
+
     class Meta:
         model = FooterLink
-        fields = ["title", "url"]
+        fields = ["title", "url", "image"]
+
+    def get_image(self, obj: FooterLink) -> str | None:
+        """Uploaded logo (absolute URL) or an external one such as the eNamad seal; None for a text link."""
+        if obj.image:
+            request = self.context.get("request")
+            return request.build_absolute_uri(obj.image.url) if request else obj.image.url
+        return obj.image_url or None
 
 
 class FooterColumnSerializer(serializers.ModelSerializer):

@@ -671,9 +671,15 @@ export interface components {
         FooterColumn: {
             title: string;
             links: {
+                /** @description Link text; the alt text when an image is shown */
                 title: string;
                 /** @description Site path (/faq) or full URL */
                 url: string;
+                /**
+                 * Format: uri
+                 * @description Logo shown instead of the title (uploaded, or external such as the eNamad seal)
+                 */
+                image: string | null;
             }[];
         };
         Banner: {

@@ -292,17 +292,17 @@ export const siteSettings: SiteSettings = {
     {
       title: "راهنمای خرید",
       links: [
-        { title: "سوالات متداول", url: "/faq" },
-        { title: "شرایط مرجوعی", url: "/returns" },
-        { title: "پیگیری سفارش", url: "/account/orders" },
+        { title: "سوالات متداول", url: "/faq", image: null },
+        { title: "شرایط مرجوعی", url: "/returns", image: null },
+        { title: "پیگیری سفارش", url: "/account/orders", image: null },
       ],
     },
     {
       title: "فروشگاه",
       links: [
-        { title: "درباره ما", url: "/about" },
-        { title: "تماس با ما", url: "/contact" },
-        { title: "شعب", url: "/stores" },
+        { title: "درباره ما", url: "/about", image: null },
+        { title: "تماس با ما", url: "/contact", image: null },
+        { title: "شعب", url: "/stores", image: null },
       ],
     },
   ],

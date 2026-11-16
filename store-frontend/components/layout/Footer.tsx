@@ -4,7 +4,7 @@ import { InstagramIcon, TelegramIcon } from "@/components/ui/icons";
 import { M } from "@/constants/messages";
 import { getSiteSettings, getStores } from "@/lib/api/catalog";
 import { toFaDigits } from "@/lib/format";
-import type { Store } from "@/types/api";
+import type { SiteSettings, Store } from "@/types/api";
 
 import { TrustBadges } from "./TrustBadges";
 
@@ -17,6 +17,43 @@ async function loadStores(): Promise<Store[]> {
 }
 
 const isExternal = (url: string) => /^https?:\/\//.test(url);
+
+type FooterLink = SiteSettings["footer_columns"][number]["links"][number];
+
+function FooterLinkItem({ link }: { link: FooterLink }) {
+  if (link.image) {
+    // A plain <img>, not next/image: trust seals such as eNamad must load from their own server and
+    // check the page's address (Referer), so "origin" is sent instead of being stripped.
+    const logo = (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={link.image}
+        alt={link.title}
+        referrerPolicy="origin"
+        loading="lazy"
+        className="h-20 w-auto rounded-lg bg-white object-contain p-1.5"
+      />
+    );
+    return isExternal(link.url) ? (
+      <a href={link.url} target="_blank" rel="noopener" referrerPolicy="origin" title={link.title} className="block">
+        {logo}
+      </a>
+    ) : (
+      <Link href={link.url} title={link.title} className="block">
+        {logo}
+      </Link>
+    );
+  }
+  return isExternal(link.url) ? (
+    <a href={link.url} target="_blank" rel="noopener noreferrer" className="hover:text-ink">
+      {link.title}
+    </a>
+  ) : (
+    <Link href={link.url} className="hover:text-ink">
+      {link.title}
+    </Link>
+  );
+}
 
 export async function Footer() {
   const [allStores, site] = await Promise.all([loadStores(), getSiteSettings()]);
@@ -56,18 +93,10 @@ export async function Footer() {
         {site.footer_columns.map((column, i) => (
           <div key={i}>
             <p className="mb-3 text-sm font-bold">{column.title}</p>
-            <ul className="text-ink-soft flex flex-col gap-2 text-sm">
+            <ul className="text-ink-soft flex flex-wrap gap-x-3 gap-y-2 text-sm">
               {column.links.map((link, j) => (
-                <li key={j}>
-                  {isExternal(link.url) ? (
-                    <a href={link.url} target="_blank" rel="noopener noreferrer" className="hover:text-ink">
-                      {link.title}
-                    </a>
-                  ) : (
-                    <Link href={link.url} className="hover:text-ink">
-                      {link.title}
-                    </Link>
-                  )}
+                <li key={j} className={link.image ? undefined : "basis-full"}>
+                  <FooterLinkItem link={link} />
                 </li>
               ))}
             </ul>

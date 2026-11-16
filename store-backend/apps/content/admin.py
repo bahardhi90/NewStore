@@ -82,7 +82,7 @@ class PageAdmin(admin.ModelAdmin):
 class FooterLinkInline(admin.TabularInline):
     model = FooterLink
     extra = 1
-    fields = ["title", "url", "order"]
+    fields = ["title", "url", "image", "image_url", "order"]
 
 
 @admin.register(FooterColumn)

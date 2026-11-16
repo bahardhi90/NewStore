@@ -193,6 +193,19 @@ class FooterLink(models.Model):
     column = models.ForeignKey(FooterColumn, on_delete=models.CASCADE, related_name="links")
     title = models.CharField("عنوان", max_length=60)
     url = models.CharField("لینک", max_length=300, help_text="مسیر داخل سایت مثل /faq یا آدرس کامل سایت دیگر")
+    image = models.ImageField(
+        "لوگو",
+        upload_to="footer/",
+        blank=True,
+        help_text="اختیاری. اگر لوگو باشد، به‌جای عنوان نمایش داده می‌شود (عنوان برای نابینایان خوانده می‌شود).",
+    )
+    image_url = models.URLField(
+        "آدرس تصویر لوگو",
+        max_length=500,
+        blank=True,
+        help_text="برای نمادهایی مثل اینماد که تصویرشان باید از سایت خودشان بارگذاری شود، "
+        "مثل https://trustseal.enamad.ir/logo.aspx?id=…&Code=…",
+    )
     order = models.PositiveIntegerField("ترتیب", default=0)
 
     class Meta:
@@ -202,6 +215,11 @@ class FooterLink(models.Model):
 
     def __str__(self) -> str:
         return self.title
+
+    def clean(self) -> None:
+        super().clean()
+        if self.image and self.image_url:
+            raise ValidationError({"image_url": "یا لوگو را بارگذاری کنید یا آدرس تصویر را وارد کنید، نه هر دو."})
 
 
 class Banner(TimeStampedModel):
