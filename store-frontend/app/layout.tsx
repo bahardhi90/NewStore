@@ -21,10 +21,19 @@ const vazirmatn = localFont({
 export async function generateMetadata(): Promise<Metadata> {
   const site = await getSiteSettings();
   // Browser tab and phone home-screen icon: the favicon from admin, otherwise the logo.
+  // A dark-mode version, if uploaded, is picked by browsers whose tabs are dark.
   const icon = site.favicon || site.logo;
+  const tabIcons = icon
+    ? site.favicon_dark
+      ? [
+          { url: icon, media: "(prefers-color-scheme: light)" },
+          { url: site.favicon_dark, media: "(prefers-color-scheme: dark)" },
+        ]
+      : [{ url: icon }]
+    : undefined;
   return {
     metadataBase: new URL(SITE_URL),
-    icons: icon ? { icon, shortcut: icon, apple: icon } : undefined,
+    icons: icon ? { icon: tabIcons, shortcut: icon, apple: icon } : undefined,
     title: { default: `${site.brand_name} | ${M.siteKind}`, template: `%s | ${site.brand_name}` },
     description: site.tagline,
     openGraph: { type: "website", locale: "fa_IR", siteName: site.brand_name },
@@ -34,6 +43,9 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export const viewport: Viewport = {
   themeColor: "#fbfaf8",
+  // The site has one (light) design. "only light" asks browsers in dark mode (Chrome, Samsung Internet…)
+  // not to force-darken it, which would hide the dark logo on a darkened header.
+  colorScheme: "only light",
   width: "device-width",
   initialScale: 1,
 };

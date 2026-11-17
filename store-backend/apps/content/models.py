@@ -35,6 +35,15 @@ class SiteSettings(TimeStampedModel):
         help_text="آیکون کوچک کنار نام سایت در تب مرورگر و میانبر موبایل. "
         "بهترین: تصویر مربعی PNG با اندازه ۵۱۲×۵۱۲ و پس‌زمینه شفاف. اگر خالی باشد، لوگو استفاده می‌شود.",
     )
+    favicon_dark = models.ImageField(
+        "آیکون سایت برای حالت تاریک",
+        upload_to="site/",
+        null=True,
+        blank=True,
+        validators=[FileExtensionValidator(["png", "ico", "jpg", "jpeg", "webp"])],
+        help_text="اختیاری. نسخه روشن آیکون (مثلاً سفید) برای مرورگرهایی که در حالت تاریک هستند. "
+        "اگر خالی باشد، همان آیکون بالا استفاده می‌شود.",
+    )
     announcement_text = models.CharField(
         "متن نوار بالای سایت",
         max_length=200,

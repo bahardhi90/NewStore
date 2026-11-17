@@ -88,6 +88,7 @@
 
 @layer base {
   html {
+    color-scheme: only light; /* light-only design: don't let dark-mode browsers force-darken it */
     -webkit-text-size-adjust: 100%;
     scroll-behavior: smooth;
   }

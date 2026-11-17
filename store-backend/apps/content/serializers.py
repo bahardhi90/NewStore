@@ -73,6 +73,7 @@ class SiteSettingsSerializer(serializers.ModelSerializer):
             "tagline",
             "logo",
             "favicon",
+            "favicon_dark",
             "announcement_text",
             "instagram_url",
             "telegram_url",
