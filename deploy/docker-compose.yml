@@ -120,6 +120,7 @@ services:
       ACME_EMAIL: ${ACME_EMAIL}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./verify:/srv/verify:ro
       - static:/srv/static:ro
       - media:/srv/media:ro
       - caddy_data:/data

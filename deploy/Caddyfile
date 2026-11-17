@@ -11,13 +11,34 @@
 	}
 }
 
+# Domain-ownership files (eNamad, Samandehi, Google…): any .txt file put in deploy/verify/ is served
+# at https://radawear.com/<name>.txt and https://www.radawear.com/<name>.txt, without the www redirect.
+(verify_files) {
+	@verify {
+		path /*.txt
+		file {
+			root /srv/verify
+		}
+	}
+	handle @verify {
+		root * /srv/verify
+		file_server
+	}
+}
+
 {$SITE_SCHEME:https}://{$DOMAIN} {
-	redir https://www.{$DOMAIN}{uri} permanent
+	import verify_files
+	handle {
+		redir https://www.{$DOMAIN}{uri} permanent
+	}
 }
 
 {$SITE_SCHEME:https}://www.{$DOMAIN} {
 	encode zstd gzip
-	reverse_proxy frontend:3000
+	import verify_files
+	handle {
+		reverse_proxy frontend:3000
+	}
 }
 
 {$SITE_SCHEME:https}://api.{$DOMAIN} {
