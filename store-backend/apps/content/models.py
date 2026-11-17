@@ -26,6 +26,15 @@ class SiteSettings(TimeStampedModel):
         blank=True,
         help_text="تا زمانی که لوگویی بارگذاری نشود، نام سایت در بالای صفحه نمایش داده می‌شود.",
     )
+    favicon = models.ImageField(
+        "آیکون سایت (فاوآیکون)",
+        upload_to="site/",
+        null=True,
+        blank=True,
+        validators=[FileExtensionValidator(["png", "ico", "jpg", "jpeg", "webp"])],
+        help_text="آیکون کوچک کنار نام سایت در تب مرورگر و میانبر موبایل. "
+        "بهترین: تصویر مربعی PNG با اندازه ۵۱۲×۵۱۲ و پس‌زمینه شفاف. اگر خالی باشد، لوگو استفاده می‌شود.",
+    )
     announcement_text = models.CharField(
         "متن نوار بالای سایت",
         max_length=200,

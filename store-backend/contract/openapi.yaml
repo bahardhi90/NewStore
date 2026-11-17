@@ -795,6 +795,7 @@ components:
         brand_name: { type: string, example: کرامت }
         tagline: { type: string }
         logo: { type: string, format: uri, nullable: true }
+        favicon: { type: string, format: uri, nullable: true, description: Browser tab icon; null means use the logo }
         announcement_text: { type: string, description: Top bar text; empty hides the bar }
         instagram_url: { type: string, description: Empty hides the icon }
         telegram_url: { type: string, description: Empty hides the icon }

@@ -19,7 +19,7 @@ class SizeChartInline(admin.StackedInline):
 class SiteSettingsAdmin(admin.ModelAdmin):
     list_display = ["brand_name", "tagline", "logo"]
     fieldsets = [
-        (None, {"fields": ["brand_name", "tagline", "logo"]}),
+        (None, {"fields": ["brand_name", "tagline", "logo", "favicon"]}),
         ("بالای سایت", {"fields": ["announcement_text"]}),
         ("شبکه‌های اجتماعی (در پاورقی)", {"fields": ["instagram_url", "telegram_url"]}),
         ("صفحه محصول", {"fields": ["product_shipping_text", "size_guide_note"]}),

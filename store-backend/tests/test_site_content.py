@@ -18,6 +18,7 @@ def test_site_settings_returns_everything_the_header_and_footer_show(api_client)
     body = api_client.get("/api/site-settings/").json()
     assert body["brand_name"] == "کرامت"
     assert body["logo"] is None
+    assert body["favicon"] is None
     assert body["announcement_text"] == "ارسال رایگان برای خریدهای بالای ۳ میلیون تومان"
     assert body["instagram_url"] == "https://instagram.com"
     assert [b["icon"] for b in body["trust_badges"]] == ["return", "truck", "shield", "badge"]

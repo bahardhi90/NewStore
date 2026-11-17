@@ -20,8 +20,11 @@ const vazirmatn = localFont({
 
 export async function generateMetadata(): Promise<Metadata> {
   const site = await getSiteSettings();
+  // Browser tab and phone home-screen icon: the favicon from admin, otherwise the logo.
+  const icon = site.favicon || site.logo;
   return {
     metadataBase: new URL(SITE_URL),
+    icons: icon ? { icon, shortcut: icon, apple: icon } : undefined,
     title: { default: `${site.brand_name} | ${M.siteKind}`, template: `%s | ${site.brand_name}` },
     description: site.tagline,
     openGraph: { type: "website", locale: "fa_IR", siteName: site.brand_name },
