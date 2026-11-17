@@ -184,6 +184,3 @@ Copy backups off the server from time to time. The uploaded images are in the Do
 | Restart everything | `docker compose restart` |
 | Change admin password | `docker compose exec web python manage.py changepassword 09124077041` |
 | Stop | `docker compose down` (data is kept) |
-
-
-#Restore

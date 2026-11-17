@@ -638,11 +638,6 @@ export interface components {
              * @description Browser tab icon; null means use the logo
              */
             favicon?: string | null;
-            /**
-             * Format: uri
-             * @description Tab icon for dark-mode browsers; null means use favicon
-             */
-            favicon_dark?: string | null;
             /** @description Top bar text; empty hides the bar */
             announcement_text: string;
             /** @description Empty hides the icon */
